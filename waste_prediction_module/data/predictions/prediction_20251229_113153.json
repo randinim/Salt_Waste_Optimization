@@ -1,0 +1,44 @@
+{
+  "timestamp": "2025-12-29T11:31:53.089001",
+  "model_version": "v20251229_111453",
+  "input": {
+    "Temperature (\u00b0C)": 25.0,
+    "Humidity (%)": 65.0,
+    "Rain (mm)": 10.0,
+    "Wind Speed (km/h)": 10.0,
+    "Production Volume": 1600.0,
+    "Evaporation Index": 50.0,
+    "Predicted Waste (bags)": 270.0,
+    "Confidence": 0.85
+  },
+  "waste_composition": {
+    "Organic Matter (%)": {
+      "percentage": 18.49126262011815,
+      "confidence": "High"
+    },
+    "Gypsum (%)": {
+      "percentage": 18.296002375241684,
+      "confidence": "High"
+    },
+    "Magnesium (%)": {
+      "percentage": 25.296901848709325,
+      "confidence": "High"
+    },
+    "Iron Oxides (%)": {
+      "percentage": 8.284665018053563,
+      "confidence": "High"
+    },
+    "Silica/Clay (%)": {
+      "percentage": 12.936135328377567,
+      "confidence": "High"
+    },
+    "Residual Salt (%)": {
+      "percentage": 15.166849725078674,
+      "confidence": "High"
+    },
+    "Moisture (%)": {
+      "percentage": 0.0,
+      "confidence": "Medium"
+    }
+  }
+}

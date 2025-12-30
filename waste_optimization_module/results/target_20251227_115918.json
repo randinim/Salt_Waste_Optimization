@@ -1,0 +1,30 @@
+{
+  "success": true,
+  "optimal_features": {
+    "temperature_c": 27.73172056246114,
+    "humidity_pct": 88.35939072434266,
+    "rainfall_mm": 211.92801609982024,
+    "wind_speed_kmh": 16.26769619838828,
+    "production_kg": 3500000.0,
+    "month": 7.0
+  },
+  "predicted_waste_percentages": {
+    "total_waste_kg": 3.4449371637242154,
+    "salt_dust_kg": 1.2199196573317777,
+    "brine_runoff_kg": 0.8691022634994501,
+    "organic_matter_kg": 0.5188373815554503,
+    "packaging_waste_kg": 0.5188373815554503,
+    "other_solids_kg": 0.34587751397335226
+  },
+  "target_waste_percentages": {
+    "total_waste_kg": 4.5,
+    "salt_dust_kg": 1.5,
+    "brine_runoff_kg": 1.2,
+    "organic_matter_kg": 0.8
+  },
+  "objective_value": 1.3801483168712345,
+  "iterations": 54,
+  "method": "SLSQP",
+  "message": "Optimization terminated successfully.",
+  "timestamp": "2025-12-27T11:59:18.986050"
+}

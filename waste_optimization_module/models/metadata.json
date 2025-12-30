@@ -1,0 +1,33 @@
+{
+  "version": "v20251229_111453",
+  "train_r2": 0.9749437097578827,
+  "val_r2": 0.9698966456298954,
+  "test_r2": 0.9674672164351733,
+  "test_rmse": 0.3494469036520389,
+  "test_mae": 0.2059708336289185,
+  "n_train_samples": 133,
+  "n_val_samples": 20,
+  "n_test_samples": 39,
+  "n_features": 34,
+  "training_date": "2025-12-29T11:14:53.614262",
+  "per_target_r2": {
+    "Organic Matter (%)": 0.9706328150308897,
+    "Gypsum (%)": 0.9662111691505119,
+    "Magnesium (%)": 0.9657719050435053,
+    "Iron Oxides (%)": 0.9633559893866536,
+    "Silica/Clay (%)": 0.9791421006630924,
+    "Residual Salt (%)": 0.9441843139263627,
+    "Moisture (%)": 0.9829722218451977
+  },
+  "timestamp": "2025-12-29T11:14:53.619192",
+  "targets": [
+    "Organic Matter (%)",
+    "Gypsum (%)",
+    "Magnesium (%)",
+    "Iron Oxides (%)",
+    "Silica/Clay (%)",
+    "Residual Salt (%)",
+    "Moisture (%)"
+  ],
+  "n_targets": 7
+}

@@ -1,0 +1,108 @@
+# Waste Prediction Model Configuration
+
+# Data Generation (Digital Twin)
+data_generation:
+  cycles: 20  # Number of 6-month production cycles for training
+  cycle_days: 180  # Days per cycle
+  interval_minutes: 1440  # 24 hours (daily data)
+  twin_id: "DT-TRAIN-001"
+  facility_id: "FAC-SL-001"
+
+# Feature Engineering
+features:
+  weather:
+    - temperature_c
+    - humidity_pct
+    - rainfall_mm
+    - wind_speed_kmh
+    - solar_radiation_w_m2
+  
+  temporal:
+    - cycle_day
+    - season
+    - day_of_week
+    - is_weekend
+  
+  production:
+    - production_volume_kg
+    - reservoir_or_level_m
+    - reservoir_ir_level_m
+    - crystallization_rate
+  
+  # Rolling features (past N days)
+  rolling_windows: [7, 14, 30]
+  
+  # Lag features (previous N days)
+  lag_days: [1, 7, 14, 30]
+
+# Target Variables (absolute waste amounts in kg)
+targets:
+  - bittern_generated_kg
+  - mud_generated_kg
+  - gypsum_generated_kg
+  - organic_matter_generated_kg
+  - brine_sludge_generated_kg
+
+# Model Configuration
+models:
+  random_forest:
+    n_estimators: 200
+    max_depth: 15
+    min_samples_split: 5
+    min_samples_leaf: 2
+    random_state: 42
+    n_jobs: -1
+  
+  xgboost:
+    n_estimators: 200
+    max_depth: 8
+    learning_rate: 0.05
+    subsample: 0.8
+    colsample_bytree: 0.8
+    random_state: 42
+    n_jobs: -1
+  
+  lightgbm:
+    n_estimators: 200
+    max_depth: 8
+    learning_rate: 0.05
+    num_leaves: 31
+    random_state: 42
+    n_jobs: -1
+
+# Training Configuration
+training:
+  test_size: 0.2
+  validation_size: 0.1
+  random_state: 42
+  cv_folds: 5
+  
+  # Feature selection
+  feature_importance_threshold: 0.01
+  
+  # Model selection criteria
+  primary_metric: "r2"  # r2, rmse, mae
+  
+# Prediction Settings
+prediction:
+  # Aggregate to monthly predictions
+  aggregate_period: "monthly"  # daily, weekly, monthly
+  
+  # Confidence intervals
+  confidence_level: 0.95
+  
+  # Alert thresholds (percentage of production)
+  alert_thresholds:
+    bittern_pct: 50.0
+    mud_pct: 5.0
+    gypsum_pct: 2.0
+    organic_matter_pct: 1.5
+    brine_sludge_pct: 3.0
+
+# Output Settings
+output:
+  model_save_path: "models/waste_predictor.joblib"
+  scaler_save_path: "models/scaler.joblib"
+  feature_names_path: "models/feature_names.json"
+  metrics_save_path: "models/training_metrics.json"
+  predictions_save_path: "data/predictions"
