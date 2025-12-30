@@ -1,0 +1,10 @@
+# Ignore prediction output
+waste_prediction_module/data/predictions/
+.log
+*.log
+*.pid
+digital_twin_module/stream_data.log
+digital_twin_module/stream_data.pid
+digital_twin_module/processed/
+waste_prediction_module/data/processed/
+digital_twin_module/data/processed/

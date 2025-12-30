@@ -7,6 +7,7 @@ Supports batch write (default) and fast mode with configurable delays
 import json
 import time
 import argparse
+import os
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import pandas as pd
@@ -14,15 +15,24 @@ import requests
 from utils.digital_twin import SaltProductionDigitalTwin
 from utils.synthetic_data_generator import SyntheticDataGenerator
 from utils.composition_advanced_predictor import WasteCompositionAdvancedPredictor
-def stream_to_postman(endpoint='http://127.0.0.1:5000/predict', start_date=None, end_date=None, delay=5.0):
+
+# Load .env if present
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+def stream_to_postman(endpoint=None, start_date=None, end_date=None, delay=5.0):
     """
     Generate synthetic data and stream to a POST endpoint (e.g., Postman/mock server)
     Args:
-        endpoint: URL to POST each prediction
+        endpoint: URL to POST each prediction (default: from .env ENDPOINT)
         start_date: Start date for forecast (default: current month)
         end_date: End date for forecast (default: 12 months from start)
         delay: Delay in seconds between data points
     """
+    if endpoint is None:
+        endpoint_env = os.environ.get('ENDPOINT')
+        if not endpoint_env:
+            raise RuntimeError("ENDPOINT must be set in .env or provided as --endpoint argument.")
+        endpoint = endpoint_env
     if start_date is None:
         now = datetime.now()
         start_date = datetime(now.year, now.month, 1)
@@ -31,17 +41,20 @@ def stream_to_postman(endpoint='http://127.0.0.1:5000/predict', start_date=None,
 
     print("\n" + "="*70)
     print(f"DIGITAL TWIN DATA STREAMING TO POST ENDPOINT (delay={delay}s)")
-    print("="*70)
 
     print("\n[1] Initializing...")
     gen = SyntheticDataGenerator()
     dt = SaltProductionDigitalTwin()
     comp_predictor = WasteCompositionAdvancedPredictor()
-    print("✓ Components ready")
+    print("Components ready")
 
     print("\n[2] Generating forecast...")
     synthetic_data = gen.generate_monthly_data(start_date, end_date)
-    print(f"✓ Generated {len(synthetic_data)} records")
+    print(f"Generated {len(synthetic_data)} records")
+
+    print("\n[2] Generating forecast...")
+    synthetic_data = gen.generate_monthly_data(start_date, end_date)
+    print(f"Generated {len(synthetic_data)} records")
 
     print("\n[3] Streaming predictions to POST endpoint...")
     all_predictions = []
@@ -72,13 +85,13 @@ def stream_to_postman(endpoint='http://127.0.0.1:5000/predict', start_date=None,
         try:
             resp = requests.post(endpoint, json=post_body, timeout=10)
             status = resp.status_code
-            resp_text = resp.text[:100] + ('...' if len(resp.text) > 100 else '')
+            print(f"  {date_str}: POST {status} | waste={post_body['predicted_waste_bags']:.0f} bags | resp: {resp_text}")
         except Exception as e:
             status = 'ERR'
             resp_text = str(e)
 
         date_str = str(row['date']).split()[0]
-        print(f"  → {date_str}: POST {status} | waste={post_body['predicted_waste_bags']:.0f} bags | resp: {resp_text}")
+        print(f"  {date_str}: POST {status} | waste={post_body['predicted_waste_bags']:.0f} bags | resp: {resp_text}")
 
         all_predictions.append(post_body)
 
@@ -237,8 +250,8 @@ Examples:
                        help='Number of months to forecast (default: 12). Ignored if --end is specified')
     parser.add_argument('--delay', type=float, default=5.0,
                        help='Delay in seconds between POSTs (default: 5)')
-    parser.add_argument('--endpoint', type=str, default='http://127.0.0.1:5000/predict',
-                       help='POST endpoint URL')
+    parser.add_argument('--endpoint', type=str, default=None,
+                       help='POST endpoint URL (required if ENDPOINT not set in .env)')
 
     args = parser.parse_args()
 
@@ -260,3 +273,13 @@ Examples:
         end_date=end_date,
         delay=args.delay
     )
+
+    # Remove PID file if it exists (for Flask-managed streaming)
+    import os
+    pid_file = os.path.join(os.path.dirname(__file__), 'stream_data.pid')
+    if os.path.exists(pid_file):
+        try:
+            os.remove(pid_file)
+            print("PID file removed at end of stream.")
+        except Exception as e:
+            print(f"Could not remove PID file: {e}")

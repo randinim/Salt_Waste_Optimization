@@ -206,7 +206,7 @@ if __name__ == '__main__':
     if init_model():
         logger.info("🚀 Starting Waste Composition Prediction API")
         logger.info("📚 Documentation available at /docs")
-        app.run(host='0.0.0.0', port=5000, debug=False)
+        app.run(host='0.0.0.0', port=5002, debug=False)
     else:
         logger.error("Failed to initialize model. Server cannot start.")
 

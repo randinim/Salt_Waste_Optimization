@@ -60,20 +60,20 @@ class WasteCompositionAdvancedPredictor:
                         model.load_model(str(model_path))
                         self.models[component] = model
             except ImportError:
-                print("✗ XGBoost not installed. Install: pip install xgboost")
+                print("XGBoost not installed. Install: pip install xgboost")
                 return False
             
             if len(self.models) == len(self.components):
-                print(f"✓ Advanced XGBoost Models loaded ({len(self.models)} components)")
-                print(f"  Average R² (test):   0.9464")
-                print(f"  Improvement vs Ridge: +519%")
+                print("Advanced XGBoost Models loaded ({} components)".format(len(self.models)))
+                print("  Average R2 (test):   0.9464")
+                print("  Improvement vs Ridge: +519%")
                 return True
             else:
                 raise FileNotFoundError(f"Only {len(self.models)}/{len(self.components)} models found")
         
         except FileNotFoundError as e:
-            print(f"✗ Error loading models: {e}")
-            print("  Run: python utils/composition_ml_advanced.py")
+            print("Error loading models: {}".format(e))
+            print("Run: python utils/composition_ml_advanced.py")
             return False
     
     def predict_composition(self, 
@@ -99,7 +99,6 @@ class WasteCompositionAdvancedPredictor:
         
         Returns:
             Dictionary with 7 component percentages (sum to 100%)
-        
         Example:
             composition = predictor.predict_composition(
                 temperature=28.5,
@@ -111,8 +110,6 @@ class WasteCompositionAdvancedPredictor:
         """
         if not self.models or not self.scaler:
             raise RuntimeError("Models not loaded. Run: python utils/composition_ml_advanced.py")
-        
-        # Build feature vector with engineered features
         wind_speed = 10.0  # Default wind speed for Sri Lanka
         
         # Base features (6)
@@ -222,21 +219,17 @@ class WasteCompositionAdvancedPredictor:
         
         component_values = {}
         total_value = 0
-        
         for component, percentage in composition.items():
             if component in prices:
                 component_tons = (percentage / 100) * total_tons
                 component_value = component_tons * prices[component]
                 component_values[component] = round(component_value, 2)
                 total_value += component_value
-        
         return {
             'component_values': component_values,
             'total_value_usd': round(total_value, 2),
             'value_per_bag': round(total_value / waste_volume, 2)
         }
-    
-    def get_model_info(self) -> Dict:
         """Return metadata about trained models."""
         if not self.metadata:
             return {'status': 'Models not loaded'}

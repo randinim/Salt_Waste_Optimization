@@ -61,10 +61,10 @@ class SaltProductionDigitalTwin:
         # Statistics for normalization reference
         self.feature_stats = self._calculate_feature_stats()
         
-        print("✓ Digital Twin initialized")
-        print(f"  Model: Ridge Regression (α=10.0)")
-        print(f"  R² Score: 0.735")
-        print(f"  Historical data: {len(self.historical_data)} records")
+        print("Digital Twin initialized")
+        print("  Model: Ridge Regression (alpha=10.0)")
+        print("  R2 Score: 0.735")
+        print("  Historical data: {} records".format(len(self.historical_data)))
     
     def _calculate_feature_stats(self) -> Dict[str, Dict[str, float]]:
         """Calculate min/max/mean for reference ranges."""
@@ -195,7 +195,7 @@ class SaltProductionDigitalTwin:
         Args:
             scenario_name: Name of scenario
             changes: Dict with parameters to change {'production': +10000, 'temperature': +2, ...}
-        
+            print(f"  Waste: {result['predicted_waste_bags']:.0f} bags")
         Returns:
             Scenario results vs baseline
         """
@@ -215,9 +215,11 @@ class SaltProductionDigitalTwin:
         }
         
         # Ensure parameters are in valid ranges
-        scenario_params['temperature'] = np.clip(scenario_params['temperature'], 
-                                                 self.feature_stats['temperature_mean (°C)']['min'],
-                                                 self.feature_stats['temperature_mean (°C)']['max'])
+        scenario_params['temperature'] = np.clip(
+            scenario_params['temperature'],
+            self.feature_stats['temperature_mean (°C)']['min'],
+            self.feature_stats['temperature_mean (°C)']['max']
+        )
         scenario_params['humidity'] = np.clip(scenario_params['humidity'], 10, 95)
         scenario_params['production'] = max(0, scenario_params['production'])
         scenario_params['rain'] = max(0, scenario_params['rain'])
