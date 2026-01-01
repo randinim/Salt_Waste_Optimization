@@ -1,0 +1,6 @@
+# Requirements for digital_twin_module
+pandas
+numpy
+scikit-learn
+openpyxl
+joblib
