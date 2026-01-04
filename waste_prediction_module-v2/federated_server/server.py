@@ -11,6 +11,10 @@ from dotenv import load_dotenv
 from model import WastePredictor
 from collections import OrderedDict
 
+# Get the directory where this script is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "models", "waste_predictor.pt")
+
 load_dotenv()
 
 class SaveModelStrategy(fl.server.strategy.FedAvg):
@@ -19,6 +23,15 @@ class SaveModelStrategy(fl.server.strategy.FedAvg):
         self.model = model
 
     def aggregate_fit(self, server_round, results, failures):
+        # Handle client disconnections gracefully
+        if failures:
+            for client_proxy, failure in failures:
+                # Check if it's a client disconnect (buffer empty - expected behavior)
+                if "Buffer empty" in str(failure) or "ClientDisconnect" in str(failure):
+                    log(INFO, f"Server: Client disconnected (no data available) - this is expected behavior")
+                else:
+                    log(INFO, f"Server: Client failure: {failure}")
+        
         # Check for zero examples to avoid ZeroDivisionError in super().aggregate_fit
         if not results or sum(fit_res.num_examples for _, fit_res in results) == 0:
             print(f"Server: No data received for round {server_round}. Skipping aggregation.")
@@ -48,7 +61,7 @@ class SaveModelStrategy(fl.server.strategy.FedAvg):
             # Load into model
             self.model.load_state_dict(state_dict, strict=True)
             # Save to disk
-            torch.save(self.model.state_dict(), "./models/waste_predictor.pt")
+            torch.save(self.model.state_dict(), MODEL_PATH)
             
         return aggregated_parameters, aggregated_metrics
 
@@ -130,9 +143,9 @@ class PersistentServer(fl.server.Server):
                 # Only increment round if successful
                 current_round += 1
             else:
-                log(INFO, "Round %s failed or no data received. Retrying...", current_round)
-                # Optional: sleep is already handled in strategy if no data, 
-                # but if it failed for other reasons, we might want a small sleep here too.
+                log(INFO, "Round %s failed or no data received. Waiting for client to reconnect...", current_round)
+                # Sleep before retrying to avoid busy-waiting
+                time.sleep(5)
                 
         return history, timeit.default_timer() - start_time
 
@@ -143,8 +156,8 @@ def main():
     # Load the pretrained model
     model = WastePredictor()
     try:
-        model.load_state_dict(torch.load("./models/waste_predictor.pt"))
-        print("Loaded pretrained model.")
+        model.load_state_dict(torch.load(MODEL_PATH))
+        print(f"Loaded pretrained model from {MODEL_PATH}")
     except Exception as e:
         print(f"Error loading model: {e}")
         return

@@ -77,9 +77,10 @@ class WasteClient(fl.client.NumPyClient):
         X_train, y_train = self.data_buffer.get_and_clear_data()
         
         if X_train is None or len(X_train) == 0:
-            print("Client: No API data received. Disconnecting client...")
-            # Raise exception to stop the client loop
-            raise ClientDisconnect("Buffer empty")
+            print("Client: No API data received. Returning unchanged parameters.")
+            # Return current parameters with 0 samples to indicate no training
+            # This allows graceful handling without raising an exception
+            return self.get_parameters(config={}), 0, {"status": "no_data"}
         
         print(f"Client: Training on {len(X_train)} samples received via API.")
 
