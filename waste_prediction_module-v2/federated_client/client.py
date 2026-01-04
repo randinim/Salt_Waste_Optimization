@@ -6,13 +6,27 @@ import numpy as np
 import os
 import time
 import threading
+import logging
+from datetime import datetime
 from dotenv import load_dotenv
 from model import WastePredictor
 from collections import OrderedDict
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 import uvicorn
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('predictions.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -145,6 +159,15 @@ class WasteClient(fl.client.NumPyClient):
 
 app = FastAPI()
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
+
 @app.post("/train-data")
 async def receive_training_data(data: TrainingData):
     global client_thread, client_running
@@ -187,17 +210,38 @@ async def predict(data: PredictionRequest):
     # Convert predictions to list
     pred_list = predictions[0].tolist()
     
+    # Log the prediction
+    logger.info("=" * 60)
+    logger.info("PREDICTION REQUEST")
+    logger.info(f"Timestamp: {datetime.now().isoformat()}")
+    logger.info(f"Input Features:")
+    logger.info(f"  - production_volume: {data.features[0]}")
+    logger.info(f"  - rain_sum: {data.features[1]}")
+    logger.info(f"  - temperature_mean: {data.features[2]}")
+    logger.info(f"  - humidity_mean: {data.features[3]}")
+    logger.info(f"  - wind_speed_mean: {data.features[4]}")
+    logger.info(f"Predictions:")
+    logger.info(f"  - Total_Waste_kg: {pred_list[0]:.4f}")
+    logger.info(f"  - Solid_Waste_Limestone_kg: {pred_list[1]:.4f}")
+    logger.info(f"  - Solid_Waste_Gypsum_kg: {pred_list[2]:.4f}")
+    logger.info(f"  - Solid_Waste_Industrial_Salt_kg: {pred_list[3]:.4f}")
+    logger.info(f"  - Liquid_Waste_Bittern_Liters: {pred_list[4]:.4f}")
+    logger.info(f"  - Potential_Epsom_Salt_kg: {pred_list[5]:.4f}")
+    logger.info(f"  - Potential_Potash_kg: {pred_list[6]:.4f}")
+    logger.info(f"  - Potential_Magnesium_Oil_Liters: {pred_list[7]:.4f}")
+    logger.info("=" * 60)
+    
     return {
         "status": "success",
         "predictions": {
-            "total_waste_kg": pred_list[0],
-            "waste_type_1": pred_list[1],
-            "waste_type_2": pred_list[2],
-            "waste_type_3": pred_list[3],
-            "waste_type_4": pred_list[4],
-            "waste_type_5": pred_list[5],
-            "waste_type_6": pred_list[6],
-            "waste_type_7": pred_list[7]
+            "Total_Waste_kg": pred_list[0],
+            "Solid_Waste_Limestone_kg": pred_list[1],
+            "Solid_Waste_Gypsum_kg": pred_list[2],
+            "Solid_Waste_Industrial_Salt_kg": pred_list[3],
+            "Liquid_Waste_Bittern_Liters": pred_list[4],
+            "Potential_Epsom_Salt_kg": pred_list[5],
+            "Potential_Potash_kg": pred_list[6],
+            "Potential_Magnesium_Oil_Liters": pred_list[7]
         },
         "raw_predictions": pred_list
     }
