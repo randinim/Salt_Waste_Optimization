@@ -70,7 +70,7 @@ client_running = False
 # Global model for inference
 MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "federated_server", "models", "waste_predictor.pt")
 try:
-    inference_model = torch.load(MODEL_PATH)
+    inference_model = torch.load(MODEL_PATH, weights_only=False)
     print(f"Loaded full model (with normalization) from {MODEL_PATH}")
 except Exception as e:
     inference_model = WastePredictor()

@@ -153,10 +153,9 @@ def get_parameters(model):
     return [val.cpu().numpy() for _, val in model.state_dict().items()]
 
 def main():
-    # Load the pretrained model
-    model = WastePredictor()
+    # Load the pretrained model (full object, not just weights)
     try:
-        model.load_state_dict(torch.load(MODEL_PATH))
+        model = torch.load(MODEL_PATH, weights_only=False)
         print(f"Loaded pretrained model from {MODEL_PATH}")
     except Exception as e:
         print(f"Error loading model: {e}")
