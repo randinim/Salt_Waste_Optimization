@@ -6,8 +6,8 @@ def preprocess_data():
     print("Starting data preprocessing...")
     
     # Paths
-    data_dir = 'data/original'
-    processed_dir = 'data/processed'
+    data_dir = '../data/original'
+    processed_dir = '../data/processed'
     os.makedirs(processed_dir, exist_ok=True)
     
     weather_path = os.path.join(data_dir, 'weather_data_total.xlsx')
