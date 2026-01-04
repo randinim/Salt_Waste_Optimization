@@ -70,11 +70,19 @@ client_running = False
 # Global model for inference
 MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "federated_server", "models", "waste_predictor.pt")
 try:
-    inference_model = torch.load(MODEL_PATH, weights_only=False)
-    print(f"Loaded full model (with normalization) from {MODEL_PATH}")
+    loaded = torch.load(MODEL_PATH, map_location="cpu")
+    # If a state_dict was saved (dict of tensors) or a dict containing 'state_dict'
+    if isinstance(loaded, dict):
+        state = loaded.get("state_dict", loaded)
+        inference_model = WastePredictor()
+        inference_model.load_state_dict(state)
+        logger.info("Loaded pretrained state_dict into WastePredictor from %s", MODEL_PATH)
+    else:
+        inference_model = loaded
+        logger.info("Loaded full model object from %s", MODEL_PATH)
 except Exception as e:
     inference_model = WastePredictor()
-    print(f"No pretrained model found, using randomly initialized weights: {e}")
+    logger.warning("No pretrained model found; using randomly initialized weights: %s", e)
 
 # --- Flower Client ---
 

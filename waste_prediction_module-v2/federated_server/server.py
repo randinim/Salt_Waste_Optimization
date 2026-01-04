@@ -153,10 +153,20 @@ def get_parameters(model):
     return [val.cpu().numpy() for _, val in model.state_dict().items()]
 
 def main():
-    # Load the pretrained model (full object, not just weights)
+    # Load the pretrained model. Support both a full serialized model
+    # object and a saved state_dict. If a state_dict is found, instantiate
+    # the `WastePredictor` and load the weights.
     try:
-        model = torch.load(MODEL_PATH, weights_only=False)
-        print(f"Loaded pretrained model from {MODEL_PATH}")
+        loaded = torch.load(MODEL_PATH, map_location="cpu")
+        if isinstance(loaded, dict):
+            # saved as state_dict or a dict containing 'state_dict'
+            state = loaded.get("state_dict", loaded)
+            model = WastePredictor()
+            model.load_state_dict(state)
+            print(f"Loaded state_dict into WastePredictor from {MODEL_PATH}")
+        else:
+            model = loaded
+            print(f"Loaded pretrained model from {MODEL_PATH}")
     except Exception as e:
         print(f"Error loading model: {e}")
         return
