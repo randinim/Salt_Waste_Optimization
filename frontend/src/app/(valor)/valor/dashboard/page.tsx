@@ -20,6 +20,8 @@ export default function ValorDashboardPage() {
   const [companionMode, setCompanionMode] = useState(false)
   const [byProductRecords, setByProductRecords] = useState<any[]>([])
   const [predictions, setPredictions] = useState<any[]>([])
+  const [nextDataId, setNextDataId] = useState<number | null>(0)
+  const [hasMorePredictions, setHasMorePredictions] = useState(false)
 
   const handleAddByProductRecord = (record: any) => {
     const recordWithId = { ...record, id: generateTimestampId(), type: "record" };
@@ -44,20 +46,65 @@ export default function ValorDashboardPage() {
       const result = await response.json();
       console.log("Prediction result:", result);
 
-      const predictionWithId = {
-        id: generateTimestampId(),
-        type: "prediction",
-        input: data.features,
-        predictions: result.predictions,
-        raw_predictions: result.raw_predictions,
-      };
-      setPredictions([...predictions, predictionWithId]);
+      // After creating a new prediction on the server, fetch the latest predictions
+      // using the cursor-based API so the UI stays consistent with the server state.
+      await fetchPredictions(0, true)
     } catch (error) {
       console.error("Error making prediction:", error);
       alert("Failed to get prediction. Make sure the API server is running.");
     }
     setShowPredictForm(false);
   }
+
+  // Fetch predictions from server using cursor-based API
+  const fetchPredictions = async (cursor: number | null = 0, replace = false) => {
+    if (cursor === null) return
+    try {
+      const pageSize = 20
+      const url = `http://localhost:8001/predictions?next_data_id=${cursor}&page_size=${pageSize}`
+      const res = await fetch(url)
+      if (!res.ok) throw new Error("Failed to fetch predictions")
+      const payload = await res.json()
+
+      // Map server entries to local UI shape
+      const mapped = (payload.predictions || []).map((p: any) => ({
+        id: p.timestamp || generateTimestampId(),
+        type: "prediction",
+        input: p.features,
+        predictions: p.predictions,
+        raw_predictions: p.raw_predictions,
+      }))
+
+      if (replace) {
+        setPredictions(mapped)
+      } else {
+        setPredictions((cur) => [...cur, ...mapped])
+      }
+
+      setNextDataId(payload.next_data_id ?? null)
+      setHasMorePredictions(Boolean(payload.has_more))
+    } catch (err) {
+      console.error("Error fetching predictions:", err)
+    }
+  }
+
+  // Initial load
+  useEffect(() => {
+    fetchPredictions(0, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Listen for custom DOM event emitted by the dashboard sentinel to trigger load-more
+  useEffect(() => {
+    const sentinel = document.getElementById("predictions-sentinel")
+    if (!sentinel) return
+    const handler = () => {
+      if (hasMorePredictions) fetchPredictions(nextDataId)
+    }
+    sentinel.addEventListener("predictions:load-more", handler as EventListener)
+    return () => sentinel.removeEventListener("predictions:load-more", handler as EventListener)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextDataId, hasMorePredictions])
 
   return (
     <DashboardLayout>
@@ -166,7 +213,9 @@ export default function ValorDashboardPage() {
         <Dashboard 
           predictions={predictions} 
           byProductRecords={byProductRecords} 
-          companionMode={companionMode} 
+          companionMode={companionMode}
+          onLoadMore={() => fetchPredictions(nextDataId)}
+          hasMore={hasMorePredictions}
         />
       </div>
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/valor/ui/card"
 import { Button } from "@/components/valor/ui/button"
 import RecordsTable from "@/components/valor/records-table"
@@ -10,9 +10,11 @@ interface DashboardProps {
   predictions: any[]
   byProductRecords: any[]
   companionMode: boolean
+  onLoadMore?: () => void
+  hasMore?: boolean
 }
 
-export default function Dashboard({ predictions, byProductRecords, companionMode }: DashboardProps) {
+export default function Dashboard({ predictions, byProductRecords, companionMode, onLoadMore, hasMore }: DashboardProps) {
   // Calculate summary totals from predictions
   const summaryTotals = useMemo(() => {
     if (predictions.length === 0) {
@@ -169,8 +171,19 @@ export default function Dashboard({ predictions, byProductRecords, companionMode
             </Button>
           </div>
           {predictions.length > 0 ? (
-            <RecordsTable data={predictions} type="prediction" />
-          ) : (
+              <>
+                <RecordsTable data={predictions} type="prediction" />
+                {/* Infinite-scroll sentinel element; referenced by effect below */}
+                <div id="predictions-sentinel" />
+                {hasMore && (
+                  <div className="mt-3 text-center">
+                    <Button onClick={() => onLoadMore?.()} size="sm" className="valor-button-secondary">
+                      Load more
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : (
             <Card className="bg-card border-border">
               <CardContent className="pt-6 text-center">
                 <p className="text-muted-foreground">No predictions yet. Click "Predict By Product" to add one.</p>
@@ -207,4 +220,40 @@ export default function Dashboard({ predictions, byProductRecords, companionMode
       )}
     </div>
   )
+}
+
+// Attach the intersection observer in a small effect to avoid bundling window-specific
+// logic into the render path. This code will run on the client.
+try {
+  // eslint-disable-next-line no-undef
+  if (typeof window !== "undefined") {
+    const attachObserver = () => {
+      const sentinel = document.getElementById("predictions-sentinel")
+      if (!sentinel) return
+
+      // avoid creating multiple observers
+      if ((sentinel as any).__observer_attached) return
+
+      const io = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            // dispatch a custom event so parent React component can handle loading
+            sentinel.dispatchEvent(new CustomEvent("predictions:load-more"))
+          }
+        }
+      }, { rootMargin: "200px" })
+
+      io.observe(sentinel)
+      ;(sentinel as any).__observer_attached = true
+    }
+
+    // Attach on DOMContentLoaded and immediately if already ready
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", attachObserver)
+    } else {
+      attachObserver()
+    }
+  }
+} catch (e) {
+  // Non-fatal; server-side render or environments without DOM will ignore
 }

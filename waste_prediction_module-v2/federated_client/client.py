@@ -16,6 +16,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 import uvicorn
+import json
+import threading
+import tempfile
+import urllib.request
+import shutil
+from typing import Optional
 
 # Configure logging
 logging.basicConfig(
@@ -67,6 +73,11 @@ data_buffer = DataBuffer()
 client_thread = None
 client_running = False
 
+# Single NDJSON file to append predictions (one JSON object per line)
+PREDICTION_STORE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "predictions.jsonl")
+PREDICTION_STORE_LOCK = threading.Lock()
+os.makedirs(os.path.dirname(PREDICTION_STORE_FILE), exist_ok=True)
+
 # Global model for inference
 MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "federated_server", "models", "waste_predictor.pt")
 try:
@@ -83,6 +94,9 @@ try:
 except Exception as e:
     inference_model = WastePredictor()
     logger.warning("No pretrained model found; using randomly initialized weights: %s", e)
+
+# Lock to guard replacing the inference model at runtime
+INFERENCE_MODEL_LOCK = threading.Lock()
 
 # --- Flower Client ---
 
@@ -236,9 +250,10 @@ async def predict(data: PredictionRequest):
     logger.info(f"  - Potential_Potash_kg: {pred_list[6]:.4f}")
     logger.info(f"  - Potential_Magnesium_Oil_Liters: {pred_list[7]:.4f}")
     logger.info("=" * 60)
-    
-    return {
-        "status": "success",
+    # Persist prediction + request for later retrieval (append to NDJSON)
+    record = {
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "features": data.features,
         "predictions": {
             "Total_Waste_kg": pred_list[0],
             "Solid_Waste_Limestone_kg": pred_list[1],
@@ -251,6 +266,121 @@ async def predict(data: PredictionRequest):
         },
         "raw_predictions": pred_list
     }
+
+    try:
+        with PREDICTION_STORE_LOCK:
+            with open(PREDICTION_STORE_FILE, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        logger.info("Appended prediction to %s", PREDICTION_STORE_FILE)
+    except Exception as e:
+        logger.warning("Failed to append prediction: %s", e)
+
+    return {
+        "status": "success",
+        "record": record,
+        "raw_predictions": pred_list
+    }
+
+
+@app.post("/sync-model")
+async def sync_model(model_url: Optional[str] = None):
+    """Download model artifact from `model_url` or `SERVER_MODEL_URL` env and replace the local inference model.
+
+    The endpoint accepts an optional JSON body with `model_url` or uses `SERVER_MODEL_URL` env var.
+    It handles both state_dict (dict of tensors) and full-model files.
+    """
+    # Determine URL
+    env_url = os.getenv("SERVER_MODEL_URL")
+    url = model_url or env_url
+    if not url:
+        raise HTTPException(status_code=400, detail="No model_url provided and SERVER_MODEL_URL not set")
+
+    try:
+        tmp = tempfile.NamedTemporaryFile(delete=False)
+        tmp_path = tmp.name
+        tmp.close()
+
+        logger.info("Downloading model from %s", url)
+        with urllib.request.urlopen(url) as resp, open(tmp_path, "wb") as out:
+            shutil.copyfileobj(resp, out)
+
+        # Load the downloaded file
+        loaded = torch.load(tmp_path, map_location="cpu")
+
+        with INFERENCE_MODEL_LOCK:
+            if isinstance(loaded, dict):
+                state = loaded.get("state_dict", loaded)
+                model = WastePredictor()
+                model.load_state_dict(state)
+                model.eval()
+                inference_model = model
+                logger.info("Synced state_dict into inference_model from %s", url)
+            else:
+                inference_model = loaded
+                inference_model.eval()
+                logger.info("Synced full model object into inference_model from %s", url)
+
+            # Persist the artifact locally for future restarts
+            try:
+                os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
+                shutil.copy(tmp_path, MODEL_PATH)
+                logger.info("Saved synced model to %s", MODEL_PATH)
+            except Exception as e:
+                logger.warning("Failed to persist synced model locally: %s", e)
+
+        return {"status": "ok", "source": url}
+    except Exception as e:
+        logger.exception("Failed to sync model: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/predictions")
+async def list_predictions(next_data_id: int = 0, page_size: int = 50):
+    """Cursor-based listing for infinite scroll (newest first).
+
+    - `next_data_id`: zero-based index into newest-first ordering (0 = newest)
+    - `page_size`: items to return
+    Response includes only: `predictions`, `next_data_id` (cursor/null), and `has_more`.
+    """
+    if next_data_id < 0 or page_size < 1:
+        raise HTTPException(status_code=400, detail="next_data_id must be >= 0 and page_size >= 1")
+
+    if not os.path.exists(PREDICTION_STORE_FILE):
+        return {"total_count": 0, "next_data_id": None, "has_more": False, "predictions": []}
+
+    try:
+        logger.info("/predictions called with next_data_id=%s page_size=%s", next_data_id, page_size)
+        with open(PREDICTION_STORE_FILE, "r", encoding="utf-8") as f:
+            lines = [line.strip() for line in f if line.strip()]
+
+        total_count = len(lines)
+        if total_count == 0:
+            return {"total_count": 0, "next_data_id": None, "has_more": False, "predictions": []}
+
+        # Newest first
+        lines.reverse()
+
+        if next_data_id >= total_count:
+            return {"total_count": total_count, "next_data_id": None, "has_more": False, "predictions": []}
+
+        end = next_data_id + page_size
+        page_lines = lines[next_data_id:end]
+        entries = [json.loads(line) for line in page_lines]
+
+        new_next = end if end < total_count else None
+        has_more = new_next is not None
+
+        logger.info("/predictions total_count=%s returned=%s new_next=%s", total_count, len(entries), new_next)
+
+        # Return cursor-style response (no page/limit state in the response)
+        return {
+            "total_count": total_count,
+            "next_data_id": new_next,
+            "has_more": has_more,
+            "predictions": entries,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 def start_flower_thread():
     global client_thread, client_running
