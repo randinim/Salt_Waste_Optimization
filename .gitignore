@@ -3,8 +3,66 @@ waste_prediction_module/data/predictions/
 .log
 *.log
 *.pid
-digital_twin_module/stream_data.log
-digital_twin_module/stream_data.pid
-digital_twin_module/processed/
-waste_prediction_module/data/processed/
-digital_twin_module/data/processed/
+
+# --- Improved Ignore Rules ---
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Environment Variables
+.env
+.env.local
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+build/
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Media - Images
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.ico
+*.svg
+*.webp
+
+# Media - Videos
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.flv
+
+# ML / Data Artifacts
+mlruns/
+*.pt
+*.pth
+*.h5
+*.pkl
+*.onnx
+
+# VS Code
+.vscode/
+*.code-workspace

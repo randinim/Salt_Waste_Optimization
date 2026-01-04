@@ -1,0 +1,39 @@
+# Technology Stack for Federated Waste Valorization
+# =================================================
+
+# Federated Learning Framework
+flwr>=1.7.0                   # Flower federated learning
+torch>=2.1.0                  # PyTorch for neural networks
+torchvision>=0.16.0           # PyTorch vision utilities
+tensorflow>=2.13.0            # TensorFlow support
+
+# Privacy Preservation
+opacus>=1.4.0                 # Facebook Opacus differential privacy
+cryptography>=41.0.0          # Secure aggregation
+
+# Digital Twin & Simulation
+mlflow>=2.9.0                 # MLflow experiment tracking
+pyarrow>=14.0.0               # Apache Arrow for efficient data
+numpy>=1.24.3                 # NumPy for numerical computing
+scipy>=1.11.0                 # SciPy for scientific computing
+
+# Decision Support System  
+streamlit>=1.29.0             # Streamlit dashboard
+fastapi>=0.104.0              # FastAPI modern API
+plotly>=5.17.0                # Plotly interactive visualization
+
+# Core Dependencies
+pandas>=2.0.3                 # Data manipulation
+scikit-learn>=1.3.0           # Basic ML utilities
+uvicorn>=0.24.0               # ASGI server
+pydantic>=2.5.0               # Data validation
+requests>=2.31.0              # HTTP requests
+python-multipart>=0.0.6       # File uploads
+sqlalchemy>=2.0.0             # Database ORM
+openpyxl>=3.1.0               # Excel file support
+python-dateutil>=2.8.0        # Date utilities
+pyyaml>=6.0                   # YAML configuration
+
+# Development Tools
+pytest>=7.4.0                 # Testing framework
+flake8>=6.1.0

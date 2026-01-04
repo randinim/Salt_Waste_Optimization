@@ -1,0 +1,6 @@
+flwr
+torch
+numpy
+python-dotenv
+fastapi
+uvicorn
