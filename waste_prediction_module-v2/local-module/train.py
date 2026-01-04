@@ -85,9 +85,9 @@ def train():
         for i, col in enumerate(output_cols):
             print(f"  {col}: {r2_per_target[i]:.4f}")
 
-    # Save model
-    torch.save(model.state_dict(), 'waste_predictor.pt')
-    print("\nModel saved to waste_predictor.pt")
+    # Save full model (including buffers for normalization)
+    torch.save(model, 'waste_predictor.pt')
+    print("\nFull model (with normalization) saved to waste_predictor.pt")
 
 if __name__ == '__main__':
     train()
