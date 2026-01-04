@@ -23,6 +23,9 @@ class TrainingData(BaseModel):
     features: List[float]  # Expecting 5 features
     targets: List[float]   # Expecting 8 targets
 
+class PredictionRequest(BaseModel):
+    features: List[float]  # Expecting 5 features: production_volume, rain_sum, temperature_mean, humidity_mean, wind_speed_mean
+
 class DataBuffer:
     def __init__(self):
         self.data = []
@@ -49,6 +52,17 @@ class DataBuffer:
 data_buffer = DataBuffer()
 client_thread = None
 client_running = False
+
+# Global model for inference
+inference_model = WastePredictor()
+
+# Try to load pretrained weights if available
+MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "federated_server", "models", "waste_predictor.pt")
+try:
+    inference_model.load_state_dict(torch.load(MODEL_PATH))
+    print(f"Loaded pretrained model from {MODEL_PATH}")
+except Exception as e:
+    print(f"No pretrained model found, using randomly initialized weights: {e}")
 
 # --- Flower Client ---
 
@@ -154,6 +168,38 @@ async def get_status():
     return {
         "buffer_size": len(data_buffer.data),
         "client_running": client_running
+    }
+
+@app.post("/predict")
+async def predict(data: PredictionRequest):
+    """Get waste predictions for given features."""
+    if len(data.features) != 5:
+        raise HTTPException(status_code=400, detail="Features must have 5 elements: production_volume, rain_sum, temperature_mean, humidity_mean, wind_speed_mean")
+    
+    # Convert to tensor
+    features_tensor = torch.tensor([data.features], dtype=torch.float32)
+    
+    # Run inference
+    inference_model.eval()
+    with torch.no_grad():
+        predictions = inference_model(features_tensor)
+    
+    # Convert predictions to list
+    pred_list = predictions[0].tolist()
+    
+    return {
+        "status": "success",
+        "predictions": {
+            "total_waste_kg": pred_list[0],
+            "waste_type_1": pred_list[1],
+            "waste_type_2": pred_list[2],
+            "waste_type_3": pred_list[3],
+            "waste_type_4": pred_list[4],
+            "waste_type_5": pred_list[5],
+            "waste_type_6": pred_list[6],
+            "waste_type_7": pred_list[7]
+        },
+        "raw_predictions": pred_list
     }
 
 def start_flower_thread():
