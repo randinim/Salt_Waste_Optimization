@@ -7,6 +7,8 @@ import os
 import time
 import threading
 import logging
+import pandas as pd
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from datetime import datetime
 from dotenv import load_dotenv
 from model import WastePredictor
@@ -155,24 +157,59 @@ class WasteClient(fl.client.NumPyClient):
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
-        
-        # Simulate inference on synthetic data
-        # Inputs: production_volume, rain_sum, temperature_mean, humidity_mean, wind_speed_mean
-        # Generate 10 random samples
-        X_test = torch.randn(10, 5) 
-        # In a real scenario, this would come from the Digital Twin
-        
+        # Try to perform a proper evaluation when a local validation CSV is available.
+        # Validation CSV path can be provided with env var `VALIDATION_DATA_PATH` or placed
+        # next to this file as `validation.csv` with same input/output column layout.
+        val_path = os.getenv("VALIDATION_DATA_PATH") or os.path.join(os.path.dirname(__file__), "validation.csv")
+
+        input_cols = ['production_volume', 'rain_sum', 'temperature_mean', 'humidity_mean', 'wind_speed_mean']
+        output_cols = [
+            'Total_Waste_kg',
+            'Solid_Waste_Limestone_kg',
+            'Solid_Waste_Gypsum_kg',
+            'Solid_Waste_Industrial_Salt_kg',
+            'Liquid_Waste_Bittern_Liters',
+            'Potential_Epsom_Salt_kg',
+            'Potential_Potash_kg',
+            'Potential_Magnesium_Oil_Liters'
+        ]
+
+        if os.path.exists(val_path):
+            try:
+                df = pd.read_csv(val_path)
+                if not set(input_cols).issubset(df.columns) or not set(output_cols).issubset(df.columns):
+                    print(f"Client: Validation file found but missing expected columns: {val_path}")
+                    raise ValueError("validation file missing columns")
+
+                X_test = torch.tensor(df[input_cols].values, dtype=torch.float32)
+                y_test = torch.tensor(df[output_cols].values, dtype=torch.float32)
+
+                self.model.eval()
+                with torch.no_grad():
+                    predictions = self.model(X_test)
+
+                y_np = y_test.numpy()
+                preds_np = predictions.numpy()
+
+                mse = mean_squared_error(y_np, preds_np)
+                mae = mean_absolute_error(y_np, preds_np)
+                r2 = r2_score(y_np, preds_np)
+
+                metrics = {"mse": float(mse), "mae": float(mae), "r2": float(r2)}
+                print(f"Client: Evaluation on validation set - MSE: {mse:.4f}, MAE: {mae:.4f}, R2: {r2:.4f}")
+
+                return float(mse), len(X_test), metrics
+            except Exception as e:
+                print(f"Client: Failed to run validation evaluation: {e}. Falling back to synthetic evaluation.")
+
+        # Fallback: synthetic evaluation (maintain previous behavior)
+        X_test = torch.randn(10, 5)
         self.model.eval()
         with torch.no_grad():
             predictions = self.model(X_test)
-            
-        # Calculate some dummy loss or metric (e.g., mean prediction value)
-        # Since we don't have ground truth for this synthetic inference, we just report statistics
-        mean_waste = predictions[:, 0].mean().item() # Total_Waste_kg
-        
+
+        mean_waste = predictions[:, 0].mean().item()
         print(f"Client: Inference performed. Mean Total Waste: {mean_waste:.2f} kg")
-        
-        # Return loss=0.0 because we are not validating against ground truth, just reporting metrics
         return 0.0, 10, {"mean_total_waste": mean_waste}
 
 # --- FastAPI App ---

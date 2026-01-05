@@ -4,3 +4,5 @@ numpy
 python-dotenv
 fastapi
 uvicorn
+pandas
+scikit-learn

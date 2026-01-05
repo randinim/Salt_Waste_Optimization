@@ -3,6 +3,9 @@ import torch
 import os
 import time
 import timeit
+import csv
+import json
+from datetime import datetime
 from logging import INFO
 from flwr.common.logger import log
 from flwr.server.history import History
@@ -33,7 +36,11 @@ class SaveModelStrategy(fl.server.strategy.FedAvg):
                     log(INFO, f"Server: Client failure: {failure}")
         
         # Check for zero examples to avoid ZeroDivisionError in super().aggregate_fit
-        if not results or sum(fit_res.num_examples for _, fit_res in results) == 0:
+        total_examples = 0
+        if results:
+            total_examples = sum(fit_res.num_examples for _, fit_res in results)
+
+        if not results or total_examples == 0:
             print(f"Server: No data received for round {server_round}. Skipping aggregation.")
             return None, {}
 
@@ -54,6 +61,15 @@ class SaveModelStrategy(fl.server.strategy.FedAvg):
                 total_diff += (diff ** 2).sum()
             update_norm = total_diff ** 0.5
             print(f"Server: Model Update Magnitude (L2 Norm): {update_norm:.6f}")
+            # Expose last update magnitude and total examples for external logging
+            try:
+                self.last_update_norm = float(update_norm)
+            except Exception:
+                self.last_update_norm = None
+            try:
+                self.last_total_examples = int(total_examples)
+            except Exception:
+                self.last_total_examples = None
 
             # Convert to state_dict
             params_dict = zip(self.model.state_dict().keys(), new_params)
@@ -140,7 +156,47 @@ class PersistentServer(fl.server.Server):
                             server_round=current_round, metrics=evaluate_metrics_fed
                         )
                 
-                # Only increment round if successful
+                # Persist per-round metrics to CSV
+                metrics_dir = os.path.join(BASE_DIR, "models")
+                os.makedirs(metrics_dir, exist_ok=True)
+                metrics_file = os.path.join(metrics_dir, "fl_metrics.csv")
+
+                row = {
+                    "round": int(current_round),
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "update_norm": getattr(self.strategy, "last_update_norm", None),
+                    "total_examples": getattr(self.strategy, "last_total_examples", None),
+                    "centralized_loss": None,
+                    "centralized_metrics": None,
+                    "distributed_loss": None,
+                    "distributed_metrics": None,
+                }
+
+                if res_cen is not None:
+                    row["centralized_loss"] = float(loss_cen)
+                    try:
+                        row["centralized_metrics"] = json.dumps(metrics_cen)
+                    except Exception:
+                        row["centralized_metrics"] = str(metrics_cen)
+
+                if res_fed is not None:
+                    try:
+                        row["distributed_loss"] = float(loss_fed) if loss_fed is not None else None
+                        row["distributed_metrics"] = json.dumps(evaluate_metrics_fed)
+                    except Exception:
+                        row["distributed_metrics"] = str(evaluate_metrics_fed)
+
+                # Append to CSV (create header if needed)
+                write_header = not os.path.exists(metrics_file)
+                try:
+                    with open(metrics_file, "a", newline="", encoding="utf-8") as csvfile:
+                        writer = csv.DictWriter(csvfile, fieldnames=list(row.keys()))
+                        if write_header:
+                            writer.writeheader()
+                        writer.writerow(row)
+                except Exception as e:
+                    print(f"Warning: Failed to write FL metrics CSV: {e}")
+
                 current_round += 1
             else:
                 log(INFO, "Round %s failed or no data received. Waiting for client to reconnect...", current_round)
