@@ -89,10 +89,21 @@ class WasteDistributor:
         
         composition = self.composition_model.calculate_composition(row)
         
-        # Add the total to the result
-        result = {'Total_Waste_kg': predicted_total_kg}
+        # Build result with Total_Waste_kg matching Total_Solid_Waste_kg for backward compatibility
+        result = {
+            'Total_Waste_kg': float(predicted_total_kg)  # This equals sum of solid wastes
+        }
         result.update(composition)
         
+        # Verify solid waste sum matches Total_Waste_kg (sanity check)
+        solid_sum = (
+            result.get('Solid_Waste_Limestone_kg', 0) +
+            result.get('Solid_Waste_Gypsum_kg', 0) +
+            result.get('Solid_Waste_Industrial_Salt_kg', 0)
+        )
+        if abs(solid_sum - predicted_total_kg) > 0.01:
+            print(f"[WARN] Warning: Solid waste sum ({solid_sum:.2f}) differs from Total_Waste_kg ({predicted_total_kg:.2f})")
+
         return result
 
     def calculate_waste_potential(self, df):

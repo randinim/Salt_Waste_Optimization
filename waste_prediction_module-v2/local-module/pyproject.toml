@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "waste-predictor"
+version = "4.0.2"
+description = "Production-grade machine learning system for industrial waste prediction"
+readme = "README.md"
+authors = [
+    {name = "Research Project Team"}
+]
+license = {text = "MIT"}
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = ["machine-learning", "waste-prediction", "industrial", "ml", "prediction", "ensemble"]
+
+dependencies = [
+    "torch>=2.0.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "scikit-learn>=1.3.0",
+    "xgboost>=2.0.0",
+    "lightgbm>=4.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "black>=23.0",
+    "flake8>=6.0",
+    "mypy>=1.0",
+]
+api = [
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/waste-predictor"
+Documentation = "https://github.com/yourusername/waste-predictor#readme"
+Repository = "https://github.com/yourusername/waste-predictor"
+Issues = "https://github.com/yourusername/waste-predictor/issues"
+
+[tool.setuptools]
+packages = ["waste_predictor"]
+
+[tool.setuptools.package-data]
+waste_predictor = ["*.pkl", "*.json"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false

@@ -1,0 +1,33 @@
+{
+  "output_columns": [
+    "Total_Waste_kg",
+    "Solid_Waste_Limestone_kg",
+    "Solid_Waste_Gypsum_kg",
+    "Solid_Waste_Industrial_Salt_kg",
+    "Liquid_Waste_Bittern_Liters",
+    "Potential_Epsom_Salt_kg",
+    "Potential_Potash_kg",
+    "Potential_Magnesium_Oil_Liters"
+  ],
+  "feature_names": [],
+  "model_weights": {
+    "gradient_boosting": 0.3324432909746478,
+    "stacked": 0.3345908049612545,
+    "neural_network": 0.3329659040640977
+  },
+  "test_metrics": {
+    "r2": 0.9849266298253521,
+    "mae": 1453.1908128578732,
+    "rmse": 2682.1745646630293
+  },
+  "per_target_r2": {
+    "Total_Waste_kg": 0.9820228500444442,
+    "Solid_Waste_Limestone_kg": 0.9802279539755833,
+    "Solid_Waste_Gypsum_kg": 0.9927531568482988,
+    "Solid_Waste_Industrial_Salt_kg": 0.9769594222602296,
+    "Liquid_Waste_Bittern_Liters": 0.9854612721103801,
+    "Potential_Epsom_Salt_kg": 0.9858277090659661,
+    "Potential_Potash_kg": 0.993253987533425,
+    "Potential_Magnesium_Oil_Liters": 0.9829066867644888
+  }
+}

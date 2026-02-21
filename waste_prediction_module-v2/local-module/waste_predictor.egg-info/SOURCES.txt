@@ -1,0 +1,17 @@
+LICENSE
+MANIFEST.in
+README.md
+pyproject.toml
+requirements.txt
+waste_predictor/__init__.py
+waste_predictor/model_metadata.json
+waste_predictor/predict.py
+waste_predictor/predict_api.py
+waste_predictor/train.py
+waste_predictor/waste_predictor_v4.pkl
+waste_predictor/waste_predictor_v4_metadata.json
+waste_predictor.egg-info/PKG-INFO
+waste_predictor.egg-info/SOURCES.txt
+waste_predictor.egg-info/dependency_links.txt
+waste_predictor.egg-info/requires.txt
+waste_predictor.egg-info/top_level.txt

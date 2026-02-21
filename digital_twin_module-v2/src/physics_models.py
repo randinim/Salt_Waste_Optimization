@@ -84,9 +84,15 @@ class WasteCompositionModel:
         composition = {}
         
         # Calculate Solid Mass (KG) - Sums exactly to total_solid_waste
+        solid_waste_sum = 0.0
         for category, score in solid_scores.items():
             fraction = score / total_solid_score
-            composition[f'Solid_Waste_{category}_kg'] = total_solid_waste * fraction
+            waste_kg = total_solid_waste * fraction
+            composition[f'Solid_Waste_{category}_kg'] = float(waste_kg)
+            solid_waste_sum += waste_kg
+
+        # Verify solid waste sum matches total (sanity check)
+        composition['Total_Solid_Waste_kg'] = float(solid_waste_sum)
 
         # ==========================================
         # 2. Calculate BITTERN & DERIVATIVES (From Production)
@@ -113,8 +119,8 @@ class WasteCompositionModel:
         
         # Total bittern generation
         bittern_vol = base_bittern + intensity_bittern
-        composition['Liquid_Waste_Bittern_Liters'] = bittern_vol
-        
+        composition['Liquid_Waste_Bittern_Liters'] = float(bittern_vol)
+
         # B. Epsom Salt Potential (KG)
         # Logic: Needs evaporation (Wind/Temp). High Humidity reduces yield.
         # FIXED: Season-independent effects - wind helps regardless of season
@@ -122,8 +128,8 @@ class WasteCompositionModel:
         wind_boost = 1 + 0.02 * (wind / 20.0)  # Normalized wind benefit (20 m/s max)
         humidity_reduction = max(0.4, 1 - 0.01 * ((humidity - 50) / 50.0))  # Normalized humidity penalty
         epsom_yield = base_epsom_yield * wind_boost * humidity_reduction
-        composition['Potential_Epsom_Salt_kg'] = max(0, epsom_yield)
-        
+        composition['Potential_Epsom_Salt_kg'] = float(max(0, epsom_yield))
+
         # C. Potash Potential (KG)
         # Logic: Needs extreme evaporation. High Rain destroys yield.
         # FIXED: Stronger temperature effect for extreme evaporation
@@ -131,14 +137,25 @@ class WasteCompositionModel:
         rain_destruction_factor = 1 / (1 + 0.008 * rain)  # Stronger rain penalty
         potash_yield = bittern_vol * self.recovery_factors['Potash'] * \
                        temp_evaporation_factor * rain_destruction_factor
-        composition['Potential_Potash_kg'] = max(0, potash_yield)
-        
+        composition['Potential_Potash_kg'] = float(max(0, potash_yield))
+
         # D. Magnesium Oil (Liters)
         # Logic: Hygroscopic. High Humidity increases volume (absorbs water).
         # FIXED: Season-independent humidity effect - always helps when humid
         base_mag_oil = bittern_vol * self.recovery_factors['Magnesium_Oil']
         humidity_boost = 1 + 0.015 * (humidity / 100.0)  # Normalized humidity benefit
         mag_oil_vol = base_mag_oil * humidity_boost
-        composition['Potential_Magnesium_Oil_Liters'] = max(0, mag_oil_vol)
-            
+        composition['Potential_Magnesium_Oil_Liters'] = float(max(0, mag_oil_vol))
+
+        # Calculate Total Liquid Waste (sum of all liquid components)
+        total_liquid_waste = (
+            composition['Liquid_Waste_Bittern_Liters'] +
+            composition['Potential_Magnesium_Oil_Liters']
+        )
+        composition['Total_Liquid_Waste_Liters'] = float(total_liquid_waste)
+
+        # Grand Total: Combined solid (kg) and potential products
+        # Note: Liquid is in Liters, solids in KG - not directly summable
+        # Total_Waste_kg represents only solid waste for consistency
+
         return composition

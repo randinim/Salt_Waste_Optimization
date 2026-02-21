@@ -13,11 +13,15 @@ Usage:
 import pandas as pd
 import numpy as np
 import os
+import sys
 import argparse
-from datetime import datetime, timedelta
+from datetime import datetime
 from dateutil.relativedelta import relativedelta
+
+# Add parent directory to path for module imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from src.digital_twin import WasteDistributor
-from src.physics_models import WasteCompositionModel
 
 class TrainingDataGenerator:
     def __init__(self, seed=42):
@@ -59,11 +63,11 @@ class TrainingDataGenerator:
             self.ref_wind_mean = monthly_features['wind_speed_mean'].mean()
             self.ref_wind_std = monthly_features['wind_speed_mean'].std()
             
-            print("✅ Model calibrated successfully using historical data")
+            print("[OK] Model calibrated successfully using historical data")
             print(f"   Calibration factor: {self.distributor.calibration_factor:.4f} kg/score_unit")
             
         except Exception as e:
-            print(f"❌ Calibration failed: {e}")
+            print(f"[ERROR] Calibration failed: {e}")
             raise
     
     def generate_realistic_features(self, year, month):
@@ -166,8 +170,8 @@ class TrainingDataGenerator:
         current_date = datetime(start_year, start_month, 1)
         end_date_dt = datetime(end_year, end_month, 1)
         
-        print(f"🔄 Generating training data from {start_year}-{start_month:02d} to {end_year}-{end_month:02d}")
-        
+        print(f"[INFO] Generating training data from {start_year}-{start_month:02d} to {end_year}-{end_month:02d}")
+
         while current_date <= end_date_dt:
             # Generate realistic features
             features = self.generate_realistic_features(current_date.year, current_date.month)
@@ -184,11 +188,42 @@ class TrainingDataGenerator:
             
             # Add noise to make training data more realistic
             if include_noise:
-                for key, value in prediction.items():
-                    if isinstance(value, (int, float)) and value > 0:
-                        noise = np.random.normal(0, value * noise_level)
-                        prediction[key] = max(0, value + noise)
-            
+                # Apply noise to solid waste components proportionally
+                solid_keys = ['Solid_Waste_Limestone_kg', 'Solid_Waste_Gypsum_kg', 'Solid_Waste_Industrial_Salt_kg']
+                liquid_keys = ['Liquid_Waste_Bittern_Liters', 'Potential_Epsom_Salt_kg', 'Potential_Potash_kg', 'Potential_Magnesium_Oil_Liters']
+
+                # Apply noise to solid wastes first
+                solid_noise_factors = {}
+                for key in solid_keys:
+                    if key in prediction and prediction[key] > 0:
+                        noise_factor = 1 + np.random.normal(0, noise_level)
+                        solid_noise_factors[key] = max(0.5, noise_factor)  # At least 50% of original
+                        prediction[key] = float(prediction[key] * solid_noise_factors[key])
+
+                # Recalculate Total_Solid_Waste_kg to match sum of noisy solid components
+                solid_sum = sum(prediction.get(key, 0) for key in solid_keys)
+                prediction['Total_Solid_Waste_kg'] = float(solid_sum)
+                prediction['Total_Waste_kg'] = float(solid_sum)  # Keep consistent
+
+                # Apply noise to liquid wastes independently
+                for key in liquid_keys:
+                    if key in prediction and prediction[key] > 0:
+                        noise_factor = 1 + np.random.normal(0, noise_level)
+                        prediction[key] = float(max(0, prediction[key] * noise_factor))
+
+                # Recalculate Total_Liquid_Waste_Liters
+                if 'Liquid_Waste_Bittern_Liters' in prediction:
+                    liquid_sum = (
+                        prediction.get('Liquid_Waste_Bittern_Liters', 0) +
+                        prediction.get('Potential_Magnesium_Oil_Liters', 0)
+                    )
+                    prediction['Total_Liquid_Waste_Liters'] = float(liquid_sum)
+
+            # Ensure all values are proper float types
+            for key, value in prediction.items():
+                if isinstance(value, (int, float, np.number)):
+                    prediction[key] = float(value)
+
             # Combine features and targets
             data_point = {**features, **prediction}
             training_data.append(data_point)
@@ -202,9 +237,43 @@ class TrainingDataGenerator:
         numeric_columns = df.select_dtypes(include=[np.number]).columns
         df[numeric_columns] = df[numeric_columns].round(4)
         
-        print(f"✅ Generated {len(df)} training samples")
+        # Validate that Total_Waste_kg equals sum of solid waste components
+        self._validate_waste_sums(df)
+
+        print(f"[OK] Generated {len(df)} training samples")
         return df
     
+    def _validate_waste_sums(self, df):
+        """
+        Validate that Total_Waste_kg equals the sum of solid waste components.
+
+        Args:
+            df: DataFrame with training data
+        """
+        solid_cols = ['Solid_Waste_Limestone_kg', 'Solid_Waste_Gypsum_kg', 'Solid_Waste_Industrial_Salt_kg']
+
+        # Check if all required columns exist
+        if not all(col in df.columns for col in solid_cols + ['Total_Waste_kg']):
+            print("[WARN] Warning: Missing columns for validation")
+            return
+
+        # Calculate expected sum
+        df['_calculated_solid_sum'] = df[solid_cols].sum(axis=1)
+
+        # Check for discrepancies (allowing small floating point differences)
+        discrepancies = abs(df['Total_Waste_kg'] - df['_calculated_solid_sum']) > 0.01
+        if discrepancies.any():
+            n_discrepancies = discrepancies.sum()
+            print(f"[WARN] Warning: {n_discrepancies} rows have Total_Waste_kg != sum of solid wastes")
+            # Fix discrepancies by updating Total_Waste_kg
+            df.loc[discrepancies, 'Total_Waste_kg'] = df.loc[discrepancies, '_calculated_solid_sum']
+            print("   -> Fixed by recalculating Total_Waste_kg from solid waste components")
+        else:
+            print("[OK] Validation passed: Total_Waste_kg = sum of solid waste components")
+
+        # Clean up temporary column
+        df.drop('_calculated_solid_sum', axis=1, inplace=True)
+
     def save_training_data(self, df, output_path, include_metadata=True):
         """
         Save training data to CSV with optional metadata.
@@ -223,7 +292,9 @@ class TrainingDataGenerator:
                 f"# Calibration Factor: {self.distributor.calibration_factor:.6f} kg/score_unit",
                 f"# Model Parameters: prod_weight={self.distributor.production_weight}, rain_weight={self.distributor.rain_weight}, temp_weight={self.distributor.temp_weight}",
                 f"# Features: production_volume, production_capacity, rain_sum, temperature_mean, humidity_mean, wind_speed_mean",
-                "# Targets: Total_Waste_kg + Composition (Solid/Liquid waste categories)",
+                "# Targets: Total_Waste_kg = Sum(Solid_Waste_Limestone_kg + Solid_Waste_Gypsum_kg + Solid_Waste_Industrial_Salt_kg)",
+                "# Additional: Total_Solid_Waste_kg, Total_Liquid_Waste_Liters (Bittern + Magnesium Oil)",
+                "# Potential Products: Potential_Epsom_Salt_kg, Potential_Potash_kg (derived from Bittern)",
                 "#"
             ]
             
@@ -234,9 +305,9 @@ class TrainingDataGenerator:
         else:
             df.to_csv(output_path, index=False)
         
-        print(f"💾 Training data saved to: {output_path}")
-        print(f"📊 Data shape: {df.shape}")
-        print(f"📋 Columns: {', '.join(df.columns)}")
+        print(f"[SAVED] Training data saved to: {output_path}")
+        print(f"[INFO] Data shape: {df.shape}")
+        print(f"[INFO] Columns: {', '.join(df.columns)}")
 
 def main():
     parser = argparse.ArgumentParser(description='Generate training data for Digital Twin prediction model')
@@ -264,7 +335,7 @@ def main():
         start_date = "2020-01"
         end_date = "2025-12"
     else:
-        print("❌ Please specify either --start-year/--end-year or --start-date/--end-date")
+        print("[ERROR] Please specify either --start-year/--end-year or --start-date/--end-date")
         return
     
     try:
@@ -285,17 +356,17 @@ def main():
         # Limit samples if specified
         if args.samples and len(df) > args.samples:
             df = df.sample(n=args.samples, random_state=args.seed).sort_values(['Year', 'Month'])
-            print(f"📝 Sampled {args.samples} records from generated data")
-        
+            print(f"[INFO] Sampled {args.samples} records from generated data")
+
         # Save data
         generator.save_training_data(df, args.output)
         
         # Print summary statistics
-        print("\n📈 Data Summary:")
+        print("\n[INFO] Data Summary:")
         print(df[['Total_Waste_kg', 'production_volume', 'rain_sum', 'temperature_mean']].describe())
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"[ERROR] Error: {e}")
         return 1
     
     return 0
