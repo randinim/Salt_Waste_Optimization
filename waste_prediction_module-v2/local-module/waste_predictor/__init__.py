@@ -11,40 +11,43 @@ Performance:
     - RMSE: 2,786 kg
     - CV R² (5-Fold): 0.9766 ± 0.0025
 
-Example:
-    >>> from waste_predictor import WastePredictor, predict_waste
+Prediction Example:
+    >>> from waste_predictor import get_waste_prediction
     >>> 
-    >>> # Quick prediction
-    >>> result = predict_waste(
-    ...     production_volume=50000,
-    ...     rain_sum=200,
-    ...     temperature_mean=28,
-    ...     humidity_mean=85,
-    ...     wind_speed_mean=15,
-    ...     month=6
-    ... )
+    >>> result = get_waste_prediction({
+    ...     'production_volume': 50000,
+    ...     'rain_sum': 200,
+    ...     'temperature_mean': 28,
+    ...     'humidity_mean': 85,
+    ...     'wind_speed_mean': 15,
+    ...     'month': 6
+    ... })
     >>> print(f"Total Waste: {result['Total_Waste_kg']:,.0f} kg")
-    >>>
-    >>> # Using the class
-    >>> predictor = WastePredictor()
-    >>> result = predictor.predict(
-    ...     production_volume=50000,
-    ...     rain_sum=200,
-    ...     temperature_mean=28,
-    ...     humidity_mean=85,
-    ...     wind_speed_mean=15,
-    ...     month=6
+
+Training Example:
+    >>> from waste_predictor import train_from_mongodb
+    >>> 
+    >>> results = train_from_mongodb(
+    ...     mongo_uri='mongodb://localhost:27017',
+    ...     database='waste_db',
+    ...     collection='training'
     ... )
+    >>> print(f"Model R²: {results['metrics']['r2']:.4f}")
 """
 
-__version__ = "4.0.2"
+__version__ = "4.0.3"
 __author__ = "Research Project Team"
 __description__ = "Production-grade waste prediction ML system"
 
 from .predict import WastePredictor, predict_waste
+from .predict_api import get_waste_prediction
+from .train_api import train_from_mongodb, train_from_dataframe
 
 __all__ = [
     "WastePredictor",
     "predict_waste",
+    "get_waste_prediction",
+    "train_from_mongodb",
+    "train_from_dataframe",
     "__version__",
 ]

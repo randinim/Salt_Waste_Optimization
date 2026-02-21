@@ -24,6 +24,7 @@ import pickle
 import pandas as pd
 import numpy as np
 import os
+import sys
 from typing import Dict
 
 # Import classes needed for pickle deserialization
@@ -38,6 +39,15 @@ try:
         ProductionWastePredictor,
         DeepNeuralNetworkModel
     )
+    # Create backward compatibility for old pickle files
+    # This allows pickles saved from standalone train.py to be loaded
+    sys.modules['train'] = sys.modules['waste_predictor.train']
+    import waste_predictor.train
+    # Also register classes in the current module for __main__ references
+    for cls_name in ['AdvancedFeatureEngineer', 'GradientBoostingWasteModel', 
+                     'StackedEnsembleModel', 'NeuralNetworkTrainer',
+                     'ProductionWastePredictor', 'DeepNeuralNetworkModel']:
+        globals()[cls_name] = getattr(waste_predictor.train, cls_name)
 except ImportError:
     # When running locally
     from train import (
@@ -48,6 +58,26 @@ except ImportError:
         ProductionWastePredictor,
         DeepNeuralNetworkModel
     )
+
+
+class CompatibilityUnpickler(pickle.Unpickler):
+    """Custom unpickler for backward compatibility with models trained outside the package."""
+    
+    def find_class(self, module, name):
+        # Redirect old module references to new package structure
+        if module == '__main__' or module == 'train':
+            try:
+                # Try to import from package
+                from waste_predictor import train
+                return getattr(train, name)
+            except (ImportError, AttributeError):
+                # Fallback: try local train module
+                try:
+                    import train as local_train
+                    return getattr(local_train, name)
+                except:
+                    pass
+        return super().find_class(module, name)
 
 
 class WastePredictor:
@@ -86,22 +116,8 @@ class WastePredictor:
                 'waste_predictor_v4.pkl'
             )
 
-        # Custom unpickler to handle __main__ module references
-        class CustomUnpickler(pickle.Unpickler):
-            def find_class(self, module, name):
-                # Redirect __main__ references to waste_predictor.train
-                if module == '__main__':
-                    try:
-                        from waste_predictor import train
-                        return getattr(train, name)
-                    except (ImportError, AttributeError):
-                        # Fallback to local train module
-                        import train as local_train
-                        return getattr(local_train, name)
-                return super().find_class(module, name)
-
         with open(model_path, 'rb') as f:
-            data = CustomUnpickler(f).load()
+            data = CompatibilityUnpickler(f).load()
 
         self.models = data['models']
         self.weights = data['weights']

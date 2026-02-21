@@ -7,7 +7,7 @@ Provides a simple function to get waste predictions from input data.
 
 from typing import Dict
 # Import model classes for pickle deserialization
-from train import (
+from .train import (
     AdvancedFeatureEngineer,
     GradientBoostingWasteModel,
     StackedEnsembleModel,
@@ -16,7 +16,7 @@ from train import (
     DeepNeuralNetworkModel
 )
 
-from predict import predict_waste
+from .predict import predict_waste
 
 def get_waste_prediction(input_data: Dict) -> Dict:
     """

@@ -8,6 +8,7 @@ waste_predictor/model_metadata.json
 waste_predictor/predict.py
 waste_predictor/predict_api.py
 waste_predictor/train.py
+waste_predictor/train_api.py
 waste_predictor/waste_predictor_v4.pkl
 waste_predictor/waste_predictor_v4_metadata.json
 waste_predictor.egg-info/PKG-INFO

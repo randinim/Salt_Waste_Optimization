@@ -28,75 +28,180 @@ A production-grade machine learning system for predicting industrial waste compo
 
 ### Installation
 
-```bash
-pip install -r requirements.txt
-```
-
-### Training
+#### Install from source (local development)
 
 ```bash
-python train_v4.py
+pip install -e .
 ```
 
-### Prediction
+#### Install from wheel file
+
+```bash
+pip install waste_predictor-4.0.0-py3-none-any.whl
+```
+
+#### Install from GitHub (if hosted)
+
+```bash
+pip install git+https://github.com/yourusername/waste-predictor.git
+```
+
+#### Install from PyPI (if published)
+
+```bash
+pip install waste-predictor
+```
+
+## 📈 Usage
+
+### Making Predictions
+
+The package provides a simple `get_waste_prediction` function:
 
 ```python
-from predict_v4 import WastePredictorV4
+from waste_predictor import get_waste_prediction
 
-# Load model
-predictor = WastePredictorV4.load('waste_predictor_v4.pkl')
+# Prepare input data
+input_data = {
+    'production_volume': 50000,
+    'rain_sum': 200,
+    'temperature_mean': 28,
+    'humidity_mean': 85,
+    'wind_speed_mean': 15,
+    'month': 6
+}
 
-# Make prediction
-result = predictor.predict(
-    production_volume=50000,
-    rain_sum=200,
-    temperature_mean=28,
-    humidity_mean=85,
-    wind_speed_mean=15,
-    month=6
-)
+# Get prediction
+result = get_waste_prediction(input_data)
 
 print(result)
-# {'Total_Waste_kg': 125000.5, 'Solid_Waste_Limestone_kg': 12500.0, ...}
+# {
+#   'Total_Waste_kg': 101804.91, 
+#   'Solid_Waste_Limestone_kg': 7322.23,
+#   'Solid_Waste_Gypsum_kg': 32448.03,
+#   'Solid_Waste_Industrial_Salt_kg': 62034.64,
+#   'Liquid_Waste_Bittern_Liters': 40547.23,
+#   'Potential_Epsom_Salt_kg': 2128.86,
+#   'Potential_Potash_kg': 379.34,
+#   'Potential_Magnesium_Oil_Liters': 4055.32
+# }
 ```
 
-### Quick Prediction Function
+### Training from MongoDB
+
+Users can train their own models using data from MongoDB:
 
 ```python
-from predict_v4 import quick_predict
+from waste_predictor import train_from_mongodb
 
-result = quick_predict(
-    production_volume=50000,
-    rain_sum=200,
-    temperature_mean=28,
-    humidity_mean=85,
-    wind_speed_mean=15,
-    month=6
+# Train with local MongoDB
+results = train_from_mongodb(
+    mongo_uri='mongodb://localhost:27017',
+    database='waste_db',
+    collection='training',
+    output_model_path='my_custom_model.pkl'
+)
+
+print(f"Model R²: {results['metrics']['r2']:.4f}")
+print(f"Model saved to: {results['model_path']}")
+```
+
+#### Training with MongoDB Atlas (Cloud)
+
+```python
+from waste_predictor import train_from_mongodb
+
+results = train_from_mongodb(
+    mongo_uri='mongodb+srv://cluster.mongodb.net',
+    database='waste_production_db',
+    username='your_username',
+    password='your_password',
+    collection='training',
+    output_model_path='waste_predictor_custom.pkl',
+    verbose=True
 )
 ```
 
-### Batch Prediction
+#### Training with Full Connection String
+
+```python
+from waste_predictor import train_from_mongodb
+
+connection_string = "mongodb+srv://user:pass@cluster.mongodb.net/dbname?retryWrites=true"
+
+results = train_from_mongodb(
+    mongo_uri=connection_string,
+    database='waste_db',
+    collection='training'
+)
+```
+
+### Training from DataFrame
+
+You can also train from a pandas DataFrame:
 
 ```python
 import pandas as pd
-from predict_v4 import WastePredictorV4
+from waste_predictor import train_from_dataframe
 
-predictor = WastePredictorV4.load('waste_predictor_v4.pkl')
+# Load your data
+df = pd.read_csv('training_data.csv')
 
-# Create input DataFrame
-data = pd.DataFrame({
-    'Month': [1, 6, 12],
-    'production_volume': [30000, 70000, 50000],
-    'rain_sum': [300, 0, 250],
-    'temperature_mean': [26, 28, 26],
-    'humidity_mean': [100, 80, 98],
-    'wind_speed_mean': [20, 12, 18]
-})
+# Train model
+results = train_from_dataframe(
+    df=df,
+    output_model_path='custom_model.pkl',
+    verbose=True
+)
 
-# Get predictions
-results = predictor.predict_batch(data)
-print(results)
+print(f"Training R²: {results['metrics']['r2']:.4f}")
 ```
+
+## 📋 Required Data Format
+
+### MongoDB Document Format
+
+Each document in your MongoDB training collection should have:
+
+```json
+{
+  "Year": 2000,
+  "Month": 1,
+  "production_volume": 43163.99,
+  "rain_sum": 270.87,
+  "temperature_mean": 26.53,
+  "humidity_mean": 100,
+  "wind_speed_mean": 19.68,
+  "Total_Waste_kg": 96664.3838,
+  "Solid_Waste_Limestone_kg": 5080.5243,
+  "Solid_Waste_Gypsum_kg": 23189.168,
+  "Solid_Waste_Industrial_Salt_kg": 68394.6915,
+  "Liquid_Waste_Bittern_Liters": 31725.5458,
+  "Potential_Epsom_Salt_kg": 1605.914,
+  "Potential_Potash_kg": 206.5851,
+  "Potential_Magnesium_Oil_Liters": 3163.2316
+}
+```
+
+### Required Fields
+
+**Input Features:**
+- `production_volume` - Production volume (numeric)
+- `rain_sum` - Total rainfall in mm (numeric)
+- `temperature_mean` - Average temperature in °C (numeric)
+- `humidity_mean` - Average humidity percentage (numeric)
+- `wind_speed_mean` - Average wind speed (numeric)
+- `Month` - Month number 1-12 (integer)
+
+**Output Targets (for training only):**
+- `Total_Waste_kg`
+- `Solid_Waste_Limestone_kg`
+- `Solid_Waste_Gypsum_kg`
+- `Solid_Waste_Industrial_Salt_kg`
+- `Liquid_Waste_Bittern_Liters`
+- `Potential_Epsom_Salt_kg`
+- `Potential_Potash_kg`
+- `Potential_Magnesium_Oil_Liters`
 
 ## 📁 Project Structure
 
