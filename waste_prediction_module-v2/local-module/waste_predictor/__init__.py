@@ -35,13 +35,14 @@ Training Example:
     >>> print(f"Model R²: {results['metrics']['r2']:.4f}")
 """
 
-__version__ = "4.0.3"
+__version__ = "1.0.5"
 __author__ = "Research Project Team"
 __description__ = "Production-grade waste prediction ML system"
 
 from .predict import WastePredictor, predict_waste
 from .predict_api import get_waste_prediction
 from .train_api import train_from_mongodb, train_from_dataframe
+from .update_api import update_model_from_s3, restore_model_from_backup
 
 __all__ = [
     "WastePredictor",
@@ -49,5 +50,7 @@ __all__ = [
     "get_waste_prediction",
     "train_from_mongodb",
     "train_from_dataframe",
+    "update_model_from_s3",
+    "restore_model_from_backup",
     "__version__",
 ]

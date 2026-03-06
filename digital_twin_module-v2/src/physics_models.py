@@ -2,160 +2,159 @@ import numpy as np
 
 class WasteCompositionModel:
     """
-    Physics-based model to determine the composition of salt production waste
-    based on environmental conditions and production volume.
+    Physics-based model for solar salt production waste in Puttalam, Sri Lanka.
     
-    Context: Puttalam, Sri Lanka (Tropical, Monsoonal).
+    Solar Salt Production Process:
+    1. Seawater evaporation in crystallizer ponds
+    2. NaCl crystallization (salt harvest)
+    3. Solid waste: Impurities (CaSO4, CaCO3, dirty salt)
+    4. Liquid waste: Bittern (concentrated brine after salt harvest)
+    
+    Key Physics:
+    - Waste generation proportional to production (~3-4% by weight)
+    - Weather affects both production AND waste composition
+    - Hot/dry conditions: More evaporation, harder impurities
+    - Wet/humid conditions: Salt dissolution, more liquid waste
     """
     
     def __init__(self):
-        # --- 1. SOLID WASTE (In the Bags) ---
-        # These ratios determine how the "Waste Bag" weight is distributed.
-        self.solid_ratios = {
-            'Limestone': 0.15,      # CaCO3 - Early precipitate/crust
-            'Gypsum': 0.60,         # CaSO4 - The primary impurity in salt pans
-            'Industrial_Salt': 0.25 # NaCl - Dirty/Washed out salt
+        # --- BASE WASTE RATIOS (Calibrated for Puttalam) ---
+        # These reflect the natural composition of rejected material
+        
+        # Solid waste ratios (for bagged solid waste)
+        self.solid_base_ratios = {
+            'Gypsum': 0.55,         # CaSO4·2H2O - Primary impurity (precipitates early)
+            'Limestone': 0.20,       # CaCO3 - Calcium carbonate deposits/scale
+            'Industrial_Salt': 0.25  # NaCl - Off-spec/contaminated/washed out salt
         }
         
-        # --- 2. BITTERN-BASED POTENTIAL (From Production Capacity & Utilization) ---
-        # Realistic physics: Bittern generation depends on infrastructure capacity
-        # and production intensity, not just raw production volume.
+        # Brine waste ratios (mother liquor after crystallization)
+        # Bittern composition: Remaining concentrated salts after NaCl harvest
+        self.brine_generation_ratio = 0.10  # Liters of bittern per KG of salt produced
+        # (Typical range: 0.08-0.15 L/kg depending on crystallization efficiency)
+        # Puttalam: ~0.10 L/kg (efficient solar evaporation)
         
-        # Base infrastructure bittern generation (always occurs)
-        self.base_bittern_ratio = 0.3      # Liters per KG of capacity (infrastructure baseline)
-        
-        # Additional bittern from production intensity
-        self.intensity_bittern_ratio = 0.7  # Liters per KG of actual production above baseline 
-        
-        # Yield Factors: KG of product per Liter of Bittern (Theoretical max)
-        self.recovery_factors = {
-            'Epsom_Salt': 0.05,     # kg MgSO4 per Liter Bittern
-            'Potash': 0.02,         # kg KCl per Liter Bittern
-            'Magnesium_Oil': 0.10   # Liters MgCl2 per Liter Bittern
+        # Bittern contains recoverable salts (potential by-products)
+        # These are concentrations in bittern (g/L)
+        self.bittern_composition = {
+            'MgSO4': 80,   # Magnesium Sulfate (Epsom Salt) - g/L in bittern
+            'MgCl2': 120,  # Magnesium Chloride (Magnesium Oil) - g/L in bittern
+            'KCl': 30      # Potassium Chloride (Potash) - g/L in bittern
         }
 
     def calculate_composition(self, row):
         """
-        Calculates the breakdown of waste for a single row (month).
-        Returns a dictionary of masses (kg) for solids and Volume (L)/Mass(kg) for liquid derivatives.
+        Calculates waste composition for a single month based on production and weather.
+        
+        Args:
+            row: Dictionary or Series with keys:
+                - predicted_waste_kg: Total solid waste (in bags) for the month
+                - production_volume: Salt production in KG
+                - rain_sum: Monthly rainfall (mm)
+                - temperature_mean: Average temperature (°C)
+                - humidity_mean: Average humidity (%)
+                - wind_speed_mean: Average wind speed (km/h)
+                
+        Returns:
+            Dictionary with waste composition breakdown
         """
         
         total_solid_waste = row['predicted_waste_kg']
         production_vol = row['production_volume']
-        production_capacity = row.get('production_capacity', production_vol / 0.8)  # Estimate if missing
         rain = row['rain_sum']
         temp = row['temperature_mean']
         humidity = row['humidity_mean']
         wind = row['wind_speed_mean']
         
-        # ==========================================
-        # 1. Distribute SOLID WASTE (The Bags) - WITH CAPACITY EFFECTS
-        # ==========================================
-        
-        # Production intensity factor (higher intensity = different waste profile)
-        production_intensity = production_vol / production_capacity
-        
-        # Facility scale factor (larger capacity = more efficient separation)
-        # Normalized to typical Puttalam scale (50,000 kg capacity baseline)
-        scale_efficiency = min(1.2, production_capacity / 50000.0)  # Max 20% efficiency gain
-        
-        # Limestone: Stable baseline, but large facilities reduce limestone waste
-        limestone_score = self.solid_ratios['Limestone'] / scale_efficiency
-        
-        # Gypsum: Weather + Capacity effects
-        # Higher temp increases gypsum, but larger facilities handle it better
-        gypsum_base = self.solid_ratios['Gypsum'] * (1 + 0.01 * (temp - 25))
-        gypsum_score = gypsum_base / (scale_efficiency ** 0.5)  # Partial efficiency gain
-        
-        # Industrial Salt: Weather + Intensity effects  
-        # Rain dissolves good salt + high intensity operations create more salt waste
-        salt_base = self.solid_ratios['Industrial_Salt'] * (1 + 0.02 * rain)
-        intensity_factor = 1 + 0.1 * (production_intensity - 0.8)  # More waste at high intensity
-        salt_waste_score = salt_base * intensity_factor
-        
-        solid_scores = {
-            'Limestone': limestone_score,
-            'Gypsum': gypsum_score,
-            'Industrial_Salt': salt_waste_score
-        }
-        
-        total_solid_score = sum(solid_scores.values())
-        
         composition = {}
         
-        # Calculate Solid Mass (KG) - Sums exactly to total_solid_waste
-        solid_waste_sum = 0.0
-        for category, score in solid_scores.items():
-            fraction = score / total_solid_score
-            waste_kg = total_solid_waste * fraction
-            composition[f'Solid_Waste_{category}_kg'] = float(waste_kg)
-            solid_waste_sum += waste_kg
-
-        # Verify solid waste sum matches total (sanity check)
-        composition['Total_Solid_Waste_kg'] = float(solid_waste_sum)
-
-        # ==========================================
-        # 2. Calculate BITTERN & DERIVATIVES (From Production)
-        # ==========================================
+        # ============================================================================
+        # PART 1: SOLID WASTE COMPOSITION (Bagged Waste)
+        # ============================================================================
+        # The solid waste is impurities removed during salt production
+        # Weather affects WHAT is in the waste, not the total amount (already determined)
         
-        # A. Raw Bittern Volume (Liters) - IMPROVED PHYSICS MODEL
-        # Realistic Logic: 
-        # 1. Base bittern from infrastructure (capacity-dependent, always generated)
-        # 2. Additional bittern from production intensity above baseline
-        # 3. Weather affects recovery efficiency, not generation volume
+        # Temperature effect: Higher temp → more gypsum precipitation
+        # Gypsum (CaSO4) is less soluble at higher temperatures
+        temp_factor = 1.0 + 0.015 * (temp - 27.0)  # Normalized around 27°C (Puttalam avg)
         
-        # Estimate production capacity (assume 80% average utilization in calibration data)
-        # estimated_capacity = production_vol / 0.8  # Now use actual capacity from data
+        # Rain effect: Higher rain → more salt dissolution/loss
+        # Industrial salt (washed out/contaminated NaCl) increases with rain
+        rain_factor = 1.0 + 0.005 * rain  # More rain = more contaminated salt
         
-        # Weather efficiency factor for bittern recovery
-        weather_efficiency = (1 + 0.01 * (temp - 25)) * (1 / (1 + 0.002 * rain))
+        # Calculate weighted ratios
+        gypsum_weight = self.solid_base_ratios['Gypsum'] * temp_factor
+        limestone_weight = self.solid_base_ratios['Limestone']  # Relatively stable
+        salt_weight = self.solid_base_ratios['Industrial_Salt'] * rain_factor
         
-        # Base bittern from infrastructure (independent of current production)
-        base_bittern = production_capacity * self.base_bittern_ratio * weather_efficiency
+        total_weight = gypsum_weight + limestone_weight + salt_weight
         
-        # Additional bittern from production intensity
-        production_intensity = production_vol / production_capacity  # Utilization ratio
-        intensity_bittern = production_vol * self.intensity_bittern_ratio * weather_efficiency
+        # Distribute total solid waste according to weighted ratios
+        composition['Solid_Waste_Gypsum_kg'] = float(total_solid_waste * (gypsum_weight / total_weight))
+        composition['Solid_Waste_Limestone_kg'] = float(total_solid_waste * (limestone_weight / total_weight))
+        composition['Solid_Waste_Industrial_Salt_kg'] = float(total_solid_waste * (salt_weight / total_weight))
+        composition['Total_Solid_Waste_kg'] = float(total_solid_waste)
         
-        # Total bittern generation
-        bittern_vol = base_bittern + intensity_bittern
-        composition['Liquid_Waste_Bittern_Liters'] = float(bittern_vol)
-
-        # B. Epsom Salt Potential (KG)
-        # Logic: Needs evaporation (Wind/Temp). High Humidity reduces yield.
-        # FIXED: Season-independent effects - wind helps regardless of season
-        base_epsom_yield = bittern_vol * self.recovery_factors['Epsom_Salt']
-        wind_boost = 1 + 0.02 * (wind / 20.0)  # Normalized wind benefit (20 m/s max)
-        humidity_reduction = max(0.4, 1 - 0.01 * ((humidity - 50) / 50.0))  # Normalized humidity penalty
-        epsom_yield = base_epsom_yield * wind_boost * humidity_reduction
-        composition['Potential_Epsom_Salt_kg'] = float(max(0, epsom_yield))
-
-        # C. Potash Potential (KG)
-        # Logic: Needs extreme evaporation. High Rain destroys yield.
-        # FIXED: Stronger temperature effect for extreme evaporation
-        temp_evaporation_factor = 1 + 0.02 * max(0, temp - 25)  # Only hot temps help
-        rain_destruction_factor = 1 / (1 + 0.008 * rain)  # Stronger rain penalty
-        potash_yield = bittern_vol * self.recovery_factors['Potash'] * \
-                       temp_evaporation_factor * rain_destruction_factor
-        composition['Potential_Potash_kg'] = float(max(0, potash_yield))
-
-        # D. Magnesium Oil (Liters)
-        # Logic: Hygroscopic. High Humidity increases volume (absorbs water).
-        # FIXED: Season-independent humidity effect - always helps when humid
-        base_mag_oil = bittern_vol * self.recovery_factors['Magnesium_Oil']
-        humidity_boost = 1 + 0.015 * (humidity / 100.0)  # Normalized humidity benefit
-        mag_oil_vol = base_mag_oil * humidity_boost
+        # ============================================================================
+        # PART 2: LIQUID WASTE - BITTERN (Mother Liquor)
+        # ============================================================================
+        # Bittern is the concentrated brine remaining after salt crystallization
+        # Generation is proportional to SALT PRODUCTION (not waste)
+        # Weather affects generation efficiency
+        
+        # Base bittern generation from production
+        base_bittern = production_vol * self.brine_generation_ratio
+        
+        # Weather efficiency modifiers:
+        # 1. High evaporation (high temp, low rain) → Better crystallization → Less bittern
+        # 2. Poor evaporation (high humidity, rain) → Poor crystallization → More bittern
+        
+        evaporation_index = (temp / 35.0) * (wind / 20.0) * (1.0 / (1.0 + rain / 500.0))
+        humidity_penalty = 1.0 + 0.003 * (humidity - 70.0)  # Higher humidity = more bittern
+        
+        # Normalize evaporation to efficiency factor (0.6 to 1.4 range)
+        efficiency_factor = max(0.6, min(1.4, evaporation_index))
+        bittern_modifier = (1.0 / efficiency_factor) * humidity_penalty
+        
+        bittern_volume = base_bittern * bittern_modifier
+        composition['Liquid_Waste_Bittern_Liters'] = float(max(0, bittern_volume))
+        
+        # ============================================================================
+        # PART 3: POTENTIAL BY-PRODUCTS FROM BITTERN
+        # ============================================================================
+        # These are recoverable salts that can be extracted from bittern
+        # Concentrations are fixed by seawater chemistry
+        # Recovery potential depends on processing conditions
+        
+        # A) Epsom Salt (MgSO4·7H2O)
+        # Needs: Cool temperatures, time for crystallization
+        # Best in: Low temp, low humidity months
+        epsom_concentration = self.bittern_composition['MgSO4']  # g/L
+        temp_recovery = max(0.3, 1.0 - 0.02 * (temp - 25.0))  # Cooler is better
+        humidity_recovery = max(0.5, 1.0 - 0.01 * (humidity - 60.0))  # Drier is better
+        epsom_kg = (bittern_volume * epsom_concentration / 1000.0) * temp_recovery * humidity_recovery
+        composition['Potential_Epsom_Salt_kg'] = float(max(0, epsom_kg))
+        
+        # B) Potash (KCl)
+        # Needs: Extreme evaporation, hot & dry conditions
+        # Rainfall destroys yield
+        potash_concentration = self.bittern_composition['KCl']  # g/L
+        evaporation_factor = max(0.1, (temp - 25.0) / 10.0) * max(0.1, wind / 15.0)
+        rain_destruction = 1.0 / (1.0 + 0.01 * rain)
+        potash_kg = (bittern_volume * potash_concentration / 1000.0) * evaporation_factor * rain_destruction
+        composition['Potential_Potash_kg'] = float(max(0, potash_kg))
+        
+        # C) Magnesium Oil (MgCl2 solution)
+        # Hygroscopic: Absorbs water from humid air
+        # High humidity increases volume
+        mag_concentration = self.bittern_composition['MgCl2']  # g/L
+        humidity_boost = 1.0 + 0.01 * (humidity - 70.0)  # More humid = more volume
+        # NOTE: This is output as LITERS of concentrated MgCl2 solution
+        mag_oil_vol = (bittern_volume * mag_concentration / 1000.0) * humidity_boost * 1.2  # Convert to liquid volume
         composition['Potential_Magnesium_Oil_Liters'] = float(max(0, mag_oil_vol))
-
-        # Calculate Total Liquid Waste (sum of all liquid components)
-        total_liquid_waste = (
-            composition['Liquid_Waste_Bittern_Liters'] +
-            composition['Potential_Magnesium_Oil_Liters']
-        )
-        composition['Total_Liquid_Waste_Liters'] = float(total_liquid_waste)
-
-        # Grand Total: Combined solid (kg) and potential products
-        # Note: Liquid is in Liters, solids in KG - not directly summable
-        # Total_Waste_kg represents only solid waste for consistency
-
+        
+        # Total liquid waste (bittern + magnesium oil volume)
+        total_liquid = bittern_volume + mag_oil_vol
+        composition['Total_Liquid_Waste_Liters'] = float(total_liquid)
+        
         return composition

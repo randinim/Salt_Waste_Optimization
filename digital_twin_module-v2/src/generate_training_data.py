@@ -32,7 +32,7 @@ class TrainingDataGenerator:
             seed: Random seed for reproducible synthetic data generation
         """
         np.random.seed(seed)
-        self.distributor = WasteDistributor(production_weight=1.0, rain_weight=0.5, temp_weight=0.1)
+        self.distributor = WasteDistributor(production_weight=1.0, rain_weight=0.3, temp_weight=0.1)
         self.is_calibrated = False
         
     def calibrate_model(self):

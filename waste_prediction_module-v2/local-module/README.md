@@ -157,6 +157,57 @@ results = train_from_dataframe(
 print(f"Training R²: {results['metrics']['r2']:.4f}")
 ```
 
+### Updating Model from S3
+
+Download and update your model directly from AWS S3:
+
+```python
+from waste_predictor import update_model_from_s3
+
+# Update model from S3 (also downloads metadata.json automatically)
+result = update_model_from_s3(
+    bucket_name='my-models-bucket',
+    s3_key='models/waste_predictor_v5.pkl',
+    aws_access_key_id='YOUR_ACCESS_KEY_ID',
+    aws_secret_access_key='YOUR_SECRET_ACCESS_KEY',
+    region_name='us-east-1'
+)
+
+if result['success']:
+    print(f"✓ {result['message']}")
+    print(f"Model: {result['model_path']}")
+    print(f"Metadata: {result['metadata_path']}")
+else:
+    print(f"✗ {result['message']}")
+```
+
+#### Using IAM Role (EC2/Lambda)
+
+When running on AWS infrastructure with IAM roles:
+
+```python
+from waste_predictor import update_model_from_s3
+
+# No credentials needed - uses IAM role
+result = update_model_from_s3(
+    bucket_name='my-models-bucket',
+    s3_key='models/waste_predictor_v5.pkl'
+)
+```
+
+#### Restore from Backup
+
+If an update fails, restore the previous model:
+
+```python
+from waste_predictor import restore_model_from_backup
+
+result = restore_model_from_backup()
+print(result['message'])
+```
+
+**📚 For detailed S3 setup and examples, see [S3_UPDATE_GUIDE.md](S3_UPDATE_GUIDE.md)**
+
 ## 📋 Required Data Format
 
 ### MongoDB Document Format
